@@ -1,0 +1,108 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: heydoc
+      POSTGRES_PASSWORD: heydoc
+      POSTGRES_DB: heydoc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heydoc -d heydoc"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    command: ["node", "dist/src/db/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://heydoc:heydoc@postgres:5432/heydoc
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  mock-lab:
+    build: .
+    command: ["node", "dist/mock-lab/index.js"]
+    environment:
+      PORT: "4000"
+      LAB_FAIL_RATE: ${LAB_FAIL_RATE:-0.2}
+      LAB_FAIL_MODE: ${LAB_FAIL_MODE:-mixed}
+      LAB_MIN_LATENCY_MS: ${LAB_MIN_LATENCY_MS:-120}
+      LAB_MAX_LATENCY_MS: ${LAB_MAX_LATENCY_MS:-700}
+      LAB_SEED: ${LAB_SEED:-}
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build: .
+    command: ["node", "dist/src/api.js"]
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgres://heydoc:heydoc@postgres:5432/heydoc
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-dev-app-secret}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-dev-verify-token}
+      LAB_URL: http://mock-lab:4000
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_MODEL: ${LLM_MODEL:-nvidia/nemotron-3.5-lightning:free}
+      LLM_FALLBACKS: ${LLM_FALLBACKS:-inclusionai/ling-3.2-flash:free,google/gemma-4-31b-it:free,openrouter/free}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-800}
+      MAX_LLM_CALLS_PER_DAY: ${MAX_LLM_CALLS_PER_DAY:-45}
+      MAX_SPEND_USD: ${MAX_SPEND_USD:-2}
+      DEV_MODE: ${DEV_MODE:-true}
+      MOCK_WHATSAPP: ${MOCK_WHATSAPP:-true}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mock-lab:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["node", "dist/src/worker.js"]
+    environment:
+      DATABASE_URL: postgres://heydoc:heydoc@postgres:5432/heydoc
+      LAB_URL: http://mock-lab:4000
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_MODEL: ${LLM_MODEL:-nvidia/nemotron-3.5-lightning:free}
+      LLM_FALLBACKS: ${LLM_FALLBACKS:-inclusionai/ling-3.2-flash:free,google/gemma-4-31b-it:free,openrouter/free}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-800}
+      MAX_LLM_CALLS_PER_DAY: ${MAX_LLM_CALLS_PER_DAY:-45}
+      MAX_SPEND_USD: ${MAX_SPEND_USD:-2}
+      DEV_MODE: ${DEV_MODE:-true}
+      MOCK_WHATSAPP: ${MOCK_WHATSAPP:-true}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-8}
+      JOB_MAX_ATTEMPTS: ${JOB_MAX_ATTEMPTS:-6}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-20}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mock-lab:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HeyDoc Gateway — operator console</title>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #121821; --line: #1f2a37; --text: #e6edf5;
+    --muted: #8b9bb0; --accent: #35d39a; --accent2: #6ea8fe; --danger: #ff6b6b; --warn: #f5c451;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 22px;
+    border-bottom: 1px solid var(--line); background: #0e141c; position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 15px; margin: 0; letter-spacing: .2px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .badge { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted); }
+  .badge.on { color: var(--accent); border-color: #1d5c45; background: #0e2a21; }
+  main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(340px, .75fr);
+    gap: 16px; padding: 16px 22px 40px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted);
+    margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  .card .body { padding: 12px 14px; }
+  .chat { display: flex; flex-direction: column; min-height: 72vh; }
+  .chat-head { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  input[type=text] { background: #0b1118; border: 1px solid var(--line); color: var(--text);
+    border-radius: 8px; padding: 9px 10px; font-size: 13px; outline: none; }
+  input[type=text]:focus { border-color: #2c4a68; }
+  #phone { width: 150px; font-family: var(--mono); }
+  #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 82%; padding: 9px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.45;
+    white-space: pre-wrap; word-break: break-word; }
+  .msg.in { align-self: flex-start; background: #1a2330; border: 1px solid #223044; border-bottom-left-radius: 4px; }
+  .msg.out { align-self: flex-end; background: #10352a; border: 1px solid #1d5c45; border-bottom-right-radius: 4px; }
+  .msg .meta { display: block; font-family: var(--mono); font-size: 9.5px; color: var(--muted); margin-top: 5px; }
+  .msg.tool { align-self: center; max-width: 92%; background: #101720; border: 1px dashed #263449;
+    color: var(--muted); font-family: var(--mono); font-size: 11px; }
+  .composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+  .composer input[type=text] { flex: 1; }
+  button { background: #1d6f55; color: #eafff7; border: 1px solid #2b8a6b; border-radius: 8px;
+    padding: 9px 13px; font-size: 13px; cursor: pointer; font-weight: 600; }
+  button:hover { background: #238366; }
+  button.ghost { background: transparent; color: var(--muted); border-color: var(--line); font-weight: 500; }
+  button.ghost:hover { color: var(--text); border-color: #33465e; background: #101820; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat { background: #0d131b; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
+  .stat .k { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .stat .v { font-family: var(--mono); font-size: 17px; margin-top: 3px; }
+  .ok { color: var(--accent); } .bad { color: var(--danger); } .warn { color: var(--warn); }
+  pre { margin: 0; font-family: var(--mono); font-size: 11px; color: #b9c7d8;
+    white-space: pre-wrap; word-break: break-word; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 12px;
+    border-bottom: 1px dashed #1a2431; }
+  .row:last-child { border-bottom: 0; }
+  .row .muted { color: var(--muted); }
+  .empty { color: var(--muted); font-size: 12px; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: #16352b; border: 1px solid #2b8a6b; color: #d9fff1; padding: 9px 14px;
+    border-radius: 999px; font-size: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>HeyDoc Gateway</h1>
+  <span class="sub">signed webhook → Postgres queue → agent → lab</span>
+  <span class="badge on" id="badge-provider">provider</span>
+  <span class="badge" id="badge-model">model</span>
+  <span class="badge" id="badge-mock">whatsapp mock</span>
+</header>
+
+<main>
+  <section class="card chat">
+    <div class="chat-head">
+      <span class="badge">patient</span>
+      <input type="text" id="phone" value="919800000001" />
+      <button class="ghost" id="new-number">New number</button>
+      <span class="sub" style="margin-left:auto">Every send is a signed POST /webhook</span>
+    </div>
+    <div id="messages"><div class="empty">Send a message to start a conversation.</div></div>
+    <form class="composer" id="composer">
+      <input type="text" id="text" placeholder="I'd like a CBC tomorrow" autocomplete="off" />
+      <button type="submit">Send</button>
+      <button type="button" class="ghost" id="duplicate" title="Re-send the exact same wamid">Send duplicate</button>
+    </form>
+  </section>
+
+  <div class="stack">
+    <section class="card">
+      <h2>Live metrics</h2>
+      <div class="body">
+        <div class="grid">
+          <div class="stat"><div class="k">ack p95</div><div class="v" id="m-ack">—</div></div>
+          <div class="stat"><div class="k">queue queued</div><div class="v" id="m-queue">—</div></div>
+          <div class="stat"><div class="k">duplicates blocked</div><div class="v ok" id="m-dupes">—</div></div>
+          <div class="stat"><div class="k">confirmed bookings</div><div class="v" id="m-bookings">—</div></div>
+        </div>
+        <div style="margin-top:12px" class="row"><span class="muted">lab calls / retries</span><span id="m-lab">—</span></div>
+        <div class="row"><span class="muted">LLM calls · tokens</span><span id="m-llm">—</span></div>
+        <div class="row"><span class="muted">spend (INR, est.)</span><span id="m-cost">—</span></div>
+        <div class="row"><span class="muted">handoffs</span><span id="m-handoffs">—</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Conversation</h2>
+      <div class="body" id="detail"><div class="empty">No conversation yet.</div></div>
+    </section>
+
+    <section class="card">
+      <h2>Mock WhatsApp outbox</h2>
+      <div class="body" id="outbox"><div class="empty">Nothing sent yet.</div></div>
+    </section>
+  </div>
+</main>
+<div id="toast"></div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const phoneInput = $('phone');
+  const textInput = $('text');
+  let lastClientId = null;
+  let lastText = null;
+  let toastTimer = null;
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmtTime = (iso) => { try { return new Date(iso).toLocaleTimeString('en-IN', {hour12:false}); } catch { return ''; } };
+  const inr = (usd) => '₹' + (Number(usd || 0) * 88).toFixed(2);
+
+  function toast(msg) {
+    const el = $('toast'); el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+  }
+
+  async function send(duplicate) {
+    const phone = phoneInput.value.trim();
+    const text = textInput.value.trim() || lastText || "I'd like to book a CBC test";
+    if (!/^\d{8,15}$/.test(phone)) return toast('Phone must be 8–15 digits');
+    const clientId = duplicate && lastClientId ? lastClientId : crypto.randomUUID();
+    lastClientId = clientId; lastText = text;
+    if (!duplicate) textInput.value = '';
+    try {
+      const res = await fetch('/dev/simulate', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone, text, clientId }),
+      });
+      const data = await res.json();
+      if (!res.ok) return toast(data.error || 'send failed');
+      toast(duplicate ? 'Duplicate wamid sent — watch it get suppressed' : 'Webhook accepted · ' + data.statusCode);
+      setTimeout(refresh, 400);
+    } catch (e) { toast('send failed: ' + e.message); }
+  }
+
+  $('composer').addEventListener('submit', (e) => { e.preventDefault(); send(false); });
+  $('duplicate').addEventListener('click', () => send(true));
+  $('new-number').addEventListener('click', () => {
+    phoneInput.value = '9198' + String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
+    lastClientId = null; $('messages').innerHTML = '<div class="empty">New conversation.</div>';
+    refresh();
+  });
+
+  async function refreshConversation() {
+    const phone = phoneInput.value.trim();
+    if (!/^\d{8,15}$/.test(phone)) return;
+    try {
+      const res = await fetch('/api/conversations/' + phone);
+      if (res.status === 404) {
+        $('messages').innerHTML = '<div class="empty">No conversation yet — send a message.</div>';
+        $('detail').innerHTML = '<div class="empty">No conversation yet.</div>';
+        return;
+      }
+      const data = await res.json();
+      const msgs = (data.messages || []).map((m) => {
+        if (m.role === 'tool') return `<div class="msg tool">tool · ${esc(m.tool_name)}<span class="meta">${esc(String(m.content || '').slice(0, 220))}</span></div>`;
+        const cls = m.direction === 'in' ? 'in' : 'out';
+        return `<div class="msg ${cls}">${esc(m.content)}<span class="meta">${cls === 'in' ? 'patient' : 'agent'} · ${fmtTime(m.created_at)}</span></div>`;
+      }).join('');
+      $('messages').innerHTML = msgs || '<div class="empty">No messages yet.</div>';
+      $('messages').scrollTop = $('messages').scrollHeight;
+
+      const c = data.conversation, u = data.usage || {};
+      const bookings = (data.bookings || []).map((b) =>
+        `<div class="row"><span>${esc(b.test_id)} · ${esc(b.slot_id)}</span><span class="${b.status === 'confirmed' ? 'ok' : b.status === 'failed' ? 'bad' : 'warn'}">${esc(b.status)}</span></div>`).join('');
+      const handoffs = (data.handoffs || []).map((h) =>
+        `<div class="row"><span class="muted">handoff</span><span>${esc(h.reason)}</span></div>`).join('');
+      $('detail').innerHTML = `
+        <div class="row"><span class="muted">phone</span><span>${esc(c.phone)}</span></div>
+        <div class="row"><span class="muted">status</span><span class="${c.status === 'human' ? 'warn' : 'ok'}">${esc(c.status)}</span></div>
+        <div class="row"><span class="muted">test</span><span>${esc(c.state?.test_id || '—')}</span></div>
+        <div class="row"><span class="muted">tokens in / out</span><span>${c.tokens_in} / ${c.tokens_out}</span></div>
+        <div class="row"><span class="muted">conversation spend</span><span>${inr(c.cost_usd)}</span></div>
+        <div class="row"><span class="muted">llm calls this conversation</span><span>${u.calls || 0}</span></div>
+        ${bookings}
+        ${handoffs}
+        <pre style="margin-top:10px">${esc(JSON.stringify(c.state || {}, null, 2))}</pre>`;
+    } catch (e) { /* transient */ }
+  }
+
+  async function refreshMetrics() {
+    try {
+      const [m, outbox] = await Promise.all([
+        fetch('/metrics?format=json').then((r) => r.json()),
+        fetch('/dev/outbox?phone=' + phoneInput.value.trim() + '&limit=6').then((r) => r.json()).catch(() => ({ messages: [] })),
+      ]);
+      $('m-ack').textContent = (m.webhook.ackLatencyMs.p95 || 0).toFixed(1) + ' ms';
+      $('m-queue').textContent = m.queue.queued + ' / ' + (m.queue.queued + m.queue.running);
+      $('m-dupes').textContent = m.webhook.duplicates;
+      $('m-bookings').textContent = m.bookings.confirmed || 0;
+      const lab = m.lab || {};
+      $('m-lab').textContent = (lab['slots:ok'] || 0) + ' slots · ' + (lab['book:ok'] || 0) + ' book · ' + (m.labRetries || 0) + ' retries';
+      const llm = m.llm || {};
+      $('m-llm').textContent = (llm.calls || 0) + ' calls · ' + ((llm.tokens.prompt || 0) + (llm.tokens.completion || 0)) + ' tok';
+      $('m-cost').textContent = inr(llm.costUsd) + ' · budget ' + llm.budget.calls + '/' + llm.budget.maxCalls;
+      $('m-handoffs').textContent = m.usage.handoffs;
+      const msgs = (outbox.messages || []).map((o) =>
+        `<div class="row"><span class="${o.status === 'sent' ? 'ok' : ''}">${esc(o.status)}</span><span class="muted">${esc(String(o.body).slice(0, 90))}</span></div>`).join('');
+      $('outbox').innerHTML = msgs || '<div class="empty">Nothing sent yet.</div>';
+    } catch (e) { /* transient */ }
+  }
+
+  async function refresh() { await refreshConversation(); await refreshMetrics(); }
+
+  fetch('/dev/config').then((r) => r.json()).then((c) => {
+    $('badge-provider').textContent = c.provider;
+    $('badge-model').textContent = c.model;
+    $('badge-mock').textContent = c.mockWhatsApp ? 'whatsapp: mock' : 'whatsapp: live';
+    $('badge-provider').className = 'badge ' + (c.provider === 'openrouter' ? 'on' : '');
+  }).catch(() => {});
+
+  refresh();
+  setInterval(refresh, 1500);
+</script>
+</body>
+</html>

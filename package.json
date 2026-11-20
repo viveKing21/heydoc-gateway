@@ -1,0 +1,39 @@
+{
+  "name": "heydoc-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WhatsApp agent gateway for a diagnostics lab — dedupe, durable queue, LLM tools, no double bookings",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/api.js",
+    "start:worker": "node dist/src/worker.js",
+    "start:lab": "node dist/mock-lab/index.js",
+    "dev": "tsx watch src/api.ts",
+    "dev:worker": "tsx watch src/worker.ts",
+    "dev:lab": "tsx watch mock-lab/index.ts",
+    "migrate": "tsx src/db/migrate.ts",
+    "test": "vitest run tests/unit",
+    "test:int": "vitest run tests/integration --no-file-parallelism",
+    "test:all": "vitest run --no-file-parallelism",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "load": "tsx scripts/load.ts",
+    "probe": "tsx scripts/llm-probe.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "fastify": "^5.12.8",
+    "pg": "^8.23.1",
+    "prom-client": "^15.1.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.1"
+  }
+}
