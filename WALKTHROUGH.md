@@ -146,6 +146,55 @@ retries harder.
 If the DB is down, the route returns **503** on purpose, so Meta retries later. That is the
 one case where a non-200 is correct.
 
+### Step 5.5 — There are **two** HTTP conversations (read this twice)
+
+This is the most common point of confusion, and a likely interview question.
+
+```
+Conversation 1 (synchronous, milliseconds)
+  Meta ──POST /webhook──► API
+  Meta ◄──200 {"status":"ok"}── API        ← this is NOT the patient's reply
+                                            it means "I have durably accepted the event"
+
+Conversation 2 (asynchronous, seconds later)
+  Worker ──POST graph.facebook.com/.../messages──► Meta ──► patient's phone
+```
+
+- The `200` from `/webhook` goes **to Meta**, not to the patient. Meta never shows it to the
+  user. It only says "stop retrying this delivery".
+- The patient's reply is a **new outbound API call** made later by the worker, from the
+  `outbox` table. In this repo it is mocked by default; with `MOCK_WHATSAPP=false` it is the
+  real Graph API call.
+- That is why the handler can take 3–8 seconds with the real model and the webhook still acks
+  in 5 ms. They are different requests, different processes, different clocks.
+
+The timeline for one message:
+
+| Time | What happens | Where |
+|---|---|---|
+| 0 ms | Meta POSTs the webhook | `POST /webhook` |
+| ~1 ms | HMAC verified, payload parsed | `signature.ts`, `payload.ts` |
+| ~2–5 ms | Inbound row + conversation + rate limit + job committed **in one SQL statement** | `repo.ingestInbound` |
+| ~5 ms | `200 {"status":"ok"}` returned to Meta | `http/app.ts` |
+| 5–105 ms | A worker loop polls, claims the job (`status='running'`, lease set) | `repo.claimJob` |
+| +50 ms–6 s | Agent runs, tools run, lab is called, booking confirmed | `agent/`, `booking/` |
+| same job | Reply text written to `messages` **and** `outbox` | `agent.reply` |
+| +0–150 ms | Outbox loop claims the row and sends it | `runtime.outboxLoop` |
+| +100 ms–300 ms | Meta delivers the WhatsApp message to the phone | Graph API |
+
+So: **the webhook response is an acknowledgement, not a reply.** If the worker is down, the
+job stays `queued` in Postgres and no reply is sent; when the worker starts, it drains the
+backlog. Nothing is lost because the job was committed before the 200.
+
+Why not do the work inside `/webhook` and return the reply? Because Meta's timeout is tight,
+the LLM and lab are slow/flaky, and Meta retries non-2xx aggressively. Doing the work inline
+would turn every lab timeout into a duplicate booking risk and a duplicate reply.
+
+The demo console makes this look synchronous because it **polls**: it POSTs `/dev/simulate`
+(which calls the real `/webhook` in-process), gets the ack, then polls
+`/api/conversations/:phone` every 1.5 s and renders the transcript from the database. What you
+see in the chat panel is the transcript, not the HTTP response of the webhook.
+
 ### Step 6 — Claim a job
 
 `src/worker/runtime.ts` starts `WORKER_CONCURRENCY` loops (default 8), one outbox loop, and a
