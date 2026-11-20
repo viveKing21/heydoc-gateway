@@ -1,0 +1,60 @@
+{
+  "runAt": "2026-11-20T07:37:18.175Z",
+  "api": "http://localhost:3000",
+  "provider": "mock",
+  "model": "deterministic-policy",
+  "messages": 1000,
+  "duplicates": 200,
+  "uniqueMessages": 800,
+  "phones": 100,
+  "lanes": 25,
+  "sendMs": 259,
+  "drainMs": 16281,
+  "jobsPerSecond": 49.1,
+  "ackMs": {
+    "p50": 4.729333999999994,
+    "p95": 11.906333000000018,
+    "p99": 49.97204199999999,
+    "max": 73.87716700000001,
+    "avg": 6.259816287999994
+  },
+  "statuses": {
+    "200": 1000
+  },
+  "dedupeSuppressed": 200,
+  "rateLimited": 0,
+  "jobs": {
+    "queued": 0,
+    "running": 0,
+    "done": 800,
+    "dead": 0
+  },
+  "jobsRetried": 0,
+  "jobsDead": 0,
+  "lab": {
+    "book:retry": 32,
+    "slots:ok": 100,
+    "slots:retry": 20,
+    "book:ok": 100
+  },
+  "outbox": {
+    "sent": 800
+  },
+  "conversations": 100,
+  "confirmed": 100,
+  "pending": 0,
+  "handoffs": 0,
+  "doubleBookedSlots": 0,
+  "llm": {
+    "calls": 1000,
+    "tokens": {
+      "prompt": 552879,
+      "completion": 40000
+    },
+    "tokenTotal": 592879,
+    "actualCostUsd": 0,
+    "actualCostInr": 0,
+    "equivalentFlashLiteUsd": 0.071288,
+    "equivalentFlashLiteInr": 6.27
+  }
+}
