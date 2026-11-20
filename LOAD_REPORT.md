@@ -1,6 +1,6 @@
 # Load report — 1,000 WhatsApp messages
 
-Generated: **2026-11-20T07:33:59.669Z** · Target: `http://localhost:3000`
+Generated: **2026-11-20T07:37:18.198Z** · Target: `http://localhost:3000`
 LLM provider: **mock** (`deterministic-policy`) · Lab: **20% failure, 120–700 ms latency**
 
 ## Setup
@@ -19,12 +19,12 @@ LLM provider: **mock** (`deterministic-policy`) · Lab: **20% failure, 120–700
 | Metric | Result |
 |---|---|
 | HTTP 200 / total | **1000 / 1000** (200: 1000) |
-| Ack p50 | **4.6 ms** |
-| Ack p95 | **13.8 ms** |
-| Ack p99 | **57.3 ms** (contract: < 200 ms) |
-| Ack max | 66.7 ms |
-| Send phase | 257 ms (3891 req/s) |
-| Queue + outbox drain | **16.8 s** (47.7 jobs/s) |
+| Ack p50 | **4.7 ms** |
+| Ack p95 | **11.9 ms** |
+| Ack p99 | **50.0 ms** (contract: < 200 ms) |
+| Ack max | 73.9 ms |
+| Send phase | 259 ms (3861 req/s) |
+| Queue + outbox drain | **16.3 s** (49.1 jobs/s) |
 | Duplicates suppressed | **200** |
 | Jobs done / dead | **800 / 0** |
 | Jobs retried (>1 attempt) | 0 |
@@ -34,18 +34,18 @@ LLM provider: **mock** (`deterministic-policy`) · Lab: **20% failure, 120–700
 | Pending (ambiguous lab outcome) | 0 |
 | Handoffs | 0 |
 | **Double-booked slots** | **0** |
-| Lab calls | book:ok=100, slots:error=1, book:retry=27, slots:ok=100, book:error=1, slots:retry=26 |
-| LLM calls | 1002 |
-| LLM tokens (prompt + completion) | 553728 + 40080 = 593808 |
+| Lab calls | book:retry=32, slots:ok=100, slots:retry=20, book:ok=100 |
+| LLM calls | 1000 |
+| LLM tokens (prompt + completion) | 552879 + 40000 = 592879 |
 | **Actual LLM spend** | **₹0.00 ($0.0000)** |
-| Equivalent at Gemini 2.5 Flash-Lite | ₹6.28 ($0.0714) |
+| Equivalent at Gemini 2.5 Flash-Lite | ₹6.27 ($0.0713) |
 
 ## What happened
 
 - All 1000 deliveries were acknowledged; 200 reached the database
   as duplicates and were suppressed by `UNIQUE(wa_message_id)` — no duplicate job, no duplicate reply.
 - The 800 unique messages produced 800 completed jobs and
-  800 outbound messages. The queue drained in 16.8 s
+  800 outbound messages. The queue drained in 16.3 s
   with 0 dead jobs.
 - 100 of 100 conversations ended with a confirmed booking. Each phone
   used a different date, so this run measures throughput, not slot contention.
@@ -56,7 +56,7 @@ LLM provider: **mock** (`deterministic-policy`) · Lab: **20% failure, 120–700
   the only path to a double booking.
 - 0 rate-limit events at 1,000 messages/min/phone (the production
   default is 20/min). No phone in this run approached the limit.
-- The lab was genuinely flaky: book:ok=100, slots:error=1, book:retry=27, slots:ok=100, book:error=1, slots:retry=26. Every one of those failures was
+- The lab was genuinely flaky: book:retry=32, slots:ok=100, slots:retry=20, book:ok=100. Every one of those failures was
   absorbed by the client's retry policy; no job reached the dead-letter state.
 
 ## Why the mock LLM

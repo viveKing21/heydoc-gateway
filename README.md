@@ -9,7 +9,7 @@ there is the one implemented here.
 
 | | |
 |---|---|
-| **Ack latency** | p50 **4.6 ms**, p95 **13.8 ms**, p99 **57 ms** over 1,000 messages |
+| **Ack latency** | p50 **4.7 ms**, p95 **11.9 ms**, p99 **50 ms** over 1,000 messages |
 | **Dedupe** | 200 / 200 duplicate deliveries suppressed, one job per message |
 | **No double booking** | 0 across a 10-way slot race and a 1,000-message run |
 | **Failure handling** | 20% lab errors absorbed; 0 dead jobs, 0 double bookings |
@@ -100,7 +100,7 @@ before the lab is called. If the lab times out after committing, the retry carri
 | Failure | Behaviour |
 |---|---|
 | Duplicate webhook | `ON CONFLICT (wa_message_id)` → no job, still `200` (never 409; Meta retries harder on non-2xx) |
-| Burst | Ack is one indexed write; 1,000 messages sent in 257 ms, p99 57 ms |
+| Burst | Ack is one indexed write; 1,000 messages sent in 259 ms, p99 50 ms |
 | Lab 500 / timeout **before** commit | Retry 3× with backoff; then the agent re-offers or retries in the tool loop |
 | Lab committed, response lost | Retry with the same key; lab replays the booking; DB marks it confirmed once |
 | Two patients, same slot | Partial unique index: one reservation, one `SLOT_TAKEN`, zero lab calls from the loser |
@@ -163,14 +163,14 @@ different date so the run measures throughput rather than artificial slot conten
 | Metric | Result |
 |---|---|
 | HTTP 200 | **1,000 / 1,000** |
-| Ack p50 / p95 / p99 / max | **4.6 / 13.8 / 57.3 / 66.7 ms** |
-| Send phase | 257 ms (~3,900 req/s) |
-| Queue + outbox drained | 16.8 s (47.7 jobs/s) |
+| Ack p50 / p95 / p99 / max | **4.7 / 11.9 / 50.0 / 73.9 ms** |
+| Send phase | 259 ms (~3,900 req/s) |
+| Queue + outbox drained | 16.3 s (49.1 jobs/s) |
 | Duplicates suppressed | **200** |
 | Jobs done / dead | **800 / 0** |
 | Confirmed bookings | **100** |
 | **Double-booked slots** | **0** |
-| Lab failures absorbed | 26 slot retries + 27 booking retries, 1 exhausted attempt per op retried by the agent |
+| Lab failures absorbed | 20 slot retries + 32 booking retries, 0 dead jobs |
 | Actual LLM spend | **₹0.00** (mock provider) |
 | Equivalent at Gemini 2.5 Flash-Lite | ₹6.28 for the run |
 

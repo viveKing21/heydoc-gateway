@@ -69,7 +69,7 @@ I personally verified:
 - `docker compose up --build` on a clean volume: `api`, `worker`, `mock-lab`, `migrate`,
   Postgres healthy; `/demo`, `/webhook`, `/metrics` reachable.
 - `npm run test:all` → **28 passed**.
-- `npm run load` → the numbers in `LOAD_REPORT.md` (p99 57.3 ms, 200 duplicates, 800 jobs,
+- `npm run load` → the numbers in `LOAD_REPORT.md` (p99 50.0 ms, 200 duplicates, 800 jobs,
   100 bookings, 0 double-booked).
 - `psql` invariant queries: `count(*) > 1` for any confirmed slot returns zero rows; each
   inbound message has exactly one job; every confirmed booking has a lab id.

@@ -99,11 +99,11 @@ docker compose exec -T postgres psql -U heydoc -d heydoc \
   -c "select slot_id, count(*) from bookings where status='confirmed' group by slot_id having count(*) > 1;"
 ```
 
-Expected: zero rows. Point at `1,000 / 1,000`, `p99 57.3 ms`, `200 duplicates`,
+Expected: zero rows. Point at `1,000 / 1,000`, `p99 50.0 ms`, `200 duplicates`,
 `800 jobs`, `100 bookings`, `0 double-booked`.
 
 **Say:**
-> "The load run had 20% lab failures: 26 slot retries and 27 booking retries, zero dead jobs.
+> "The load run had 20% lab failures: 20 slot retries and 32 booking retries, zero dead jobs.
 > The invariant query is empty. Two defenses: a partial unique index on the slot, and an
 > idempotency key that survives a committed-but-lost response. The integration test also
 > races ten conversations for one slot and asserts exactly one winner."
