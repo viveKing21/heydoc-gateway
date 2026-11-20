@@ -781,6 +781,15 @@ curl -X POST localhost:4000/__admin/reset
 
 ## 10. Interview Q&A (rapid fire)
 
+**Is the worker using cron?**
+No. Cron is an OS scheduler that launches a process on a time schedule (minimum resolution
+one minute, overlapping runs, cold starts). The worker is a **daemon**: Docker keeps it
+running (`restart: unless-stopped`), and inside it there are 8 `jobLoop()` promises plus one
+`outboxLoop()` and a `setInterval` reaper. Each loop is `while (!aborted) { claim; if none
+sleep(100ms); }`. That is polling, not cron. Worst-case added latency is one poll interval
+(~100 ms for jobs, ~150 ms for outbox, 5 s for the lease reaper). The only timer is the
+in-process reaper; it is not a scheduled job either.
+
 **Why Postgres instead of Redis/SQS?**
 It is already required for state; `SKIP LOCKED` supports multiple consumers; one fewer
 service to operate. At 10× with bursty traffic I would move the queue to SQS/Kafka and keep
