@@ -65,7 +65,6 @@ export class WorkerRuntime {
 
       try {
         await handleJob(job, this.deps);
-
       } catch (err) {
         const message = (err as Error).message ?? 'unknown error';
         const delaySeconds =
@@ -84,8 +83,6 @@ export class WorkerRuntime {
             log.error('dead-letter handling failed', { jobId: job.id, error: (e as Error).message }),
           );
         }
-      } finally {
-
       }
     }
   }
