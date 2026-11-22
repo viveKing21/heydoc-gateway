@@ -612,6 +612,49 @@ So:
 `/metrics?format=json` also returns `webhook.ackLatencyMs` percentiles and the conversation
 table. That is what the demo console polls.
 
+### Percentiles in plain English (p50 / p95 / p99)
+
+A percentile is a **value**, not a percentage. "p95 = 11.9 ms" means **95% of requests were
+at or below 11.9 ms** (and 5% were slower). It answers "how bad is it for the unlucky users?",
+which an average cannot.
+
+Take 100 requests:
+
+- 50 finish in **5 ms**
+- 45 finish in **10 ms**
+- 4 finish in **50 ms**
+- 1 finishes in **500 ms**
+
+Sorted, that is: 50×5, then 45×10, then 4×50, then 1×500.
+
+| Metric | Position | Value | Plain English |
+|---|---|---|---|
+| p50 (median) | 50th | **5 ms** | Half the users are faster than 5 ms |
+| p95 | 95th | **10 ms** | 19 out of 20 are at or below 10 ms; 1 in 20 is slower |
+| p99 | 99th | **50 ms** | 99 out of 100 are at or below 50 ms; 1 in 100 is slower |
+| max | 100th | **500 ms** | The single worst request |
+| average | — | 9.95 ms | Looks fine, but hides that one user waited 500 ms |
+
+The one 500 ms request barely moves the average (9.95 ms) but it is exactly what a user
+notices, and exactly what triggers a timeout/retry. That is why the assignment's contract is
+stated as a tail number: **p99 < 200 ms**, not "average < 200 ms".
+
+How it is computed here (`src/util/backoff.ts` → `percentiles`):
+
+1. Record every latency.
+2. Sort ascending.
+3. For pX, take index `ceil(X/100 × N) − 1` (0-based). This is "nearest rank". Other tools
+   interpolate between neighbours, so numbers can differ by a fraction of a millisecond; the
+   meaning is the same.
+
+Our load run: **p50 4.7 ms · p95 11.9 ms · p99 50.0 ms · max 73.9 ms** over 1,000 requests.
+That means 990 of 1,000 acks were ≤ 50 ms, and even the worst was 73.9 ms — under the 200 ms
+contract with room to spare. The API also keeps a 5,000-sample ring buffer
+(`src/metrics/window.ts`) so `/metrics?format=json` can report the same percentiles live.
+
+p60 would just mean "60% of requests are at or below this value". The naming is always
+`p` + the percentage.
+
 ### Cost
 
 `COST.md` assumes 1M inbound messages, 40% handled without an LLM, 600k LLM turns, 1.6 calls
